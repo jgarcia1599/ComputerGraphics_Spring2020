@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" > 
+
+<title>Procedural Noise</title>
+
+<script id="vertex-shader" type="x-shader/x-vertex">
+precision highp float; // use high precision
+
+attribute vec4 vPosition;
+varying vec2 pos;
+
+void main(){
+    pos = vPosition.xy;
+	gl_Position = vPosition;
+}
+</script>
+
+<script id="fragment-shader" type="x-shader/x-fragment">
+
+precision highp float; // use high precision
+varying vec2 pos;
+uniform float t; // time in seconds
+
+#define PI 3.14159
+#define SALT 0.11
+
+vec3 hsv2rgb(vec3 c) {
+  vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+  vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+  return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+}
+
+vec3 mapToColor(float h){
+	float s = 1.0;
+	float v = 1.0;
+	return hsv2rgb(vec3(h,s,v));
+}
+
+float random(vec2 v, float salt){
+	// returns a value in [0,1)
+	float a = 5678.1234; 
+	vec2 b = vec2(12.3456, 78.910);
+	float c = 1.1235+salt;
+	return fract(a*sin(dot(b,v)+c));
+}
+
+float random(vec2 v){
+	// returns a value in [0,1)
+	return random(v,SALT);
+}
+
+vec2 randvec(vec2 v){
+	float theta = 2.0*PI*random(v);
+	return vec2(cos(theta), sin(theta));
+}
+
+float alpha(float t){ // fading fn, similar to smoothstep
+	return ((6.0*t-15.0)*t + 10.0)*t*t*t;
+}
+
+
+float valueNoise(vec2 p){
+	vec2 p0 = floor(p);
+	float l0 = random(p0);
+	float l1 = random(p0 + vec2(0.0, 1.0));
+	float l2 = random(p0 + vec2(1.0, 0.0));
+    float l3 = random(p0 + vec2(1.0, 1.0));
+	
+	vec2 t = fract(p);
+	float a = t.x, b = t.y;
+	float a0 = alpha(1.0-a), a1 = alpha(a);
+	float b0 = alpha(1.0-b), b1 = alpha(b);
+	 
+	return a0*b0*l0 + a0*b1*l1 + a1*b0*l2 + a1*b1*l3;
+}
+
+float gradientNoise(vec2 p){
+
+	vec2 p0 = floor(p);
+	vec2 p1 = p0 + vec2(0.0, 1.0);
+	vec2 p2 = p0 + vec2(1.0, 0.0);
+	vec2 p3 = p0 + vec2(1.0, 1.0);
+
+	float l0 = random(p0) + dot( p - p0, randvec(p0) );
+	float l1 = random(p1) + dot( p - p1, randvec(p1) );
+	float l2 = random(p2) + dot( p - p2, randvec(p2) );
+	float l3 = random(p3) + dot( p - p3, randvec(p3) );
+
+	vec2 t = fract(p);
+	float a = t.x, b = t.y;
+	float a0 = alpha(1.0-a), a1 = alpha(a);
+	float b0 = alpha(1.0-b), b1 = alpha(b);
+	
+	return (a0*b0*l0 + a0*b1*l1 + a1*b0*l2 + a1*b1*l3);
+}
+
+#define OCTAVES 8
+float fbm(vec2 p){
+	float a = 1.0, s = 0.0;
+	for(int i = 0; i < OCTAVES; ++i){
+		a *= 2.0;
+		s += gradientNoise(a*p)/a;
+	}
+	return s;
+}
+
+float fbmVN(vec2 p){
+	float a = 1.0, s = 0.0;
+	for(int i = 0; i < OCTAVES; ++i){
+		a *= 2.0;
+		s += valueNoise(a*p)/a;
+	}
+	return s;
+}
+
+float turbulence(vec2 v){
+	/*	Similar to fbm but uses absolute value of noise fn.
+		This introduces discontinuties in the derivative.	*/
+	float a = 1.0, s = 0.0;
+	for(int i = 0; i < OCTAVES; ++i){
+		a *= 2.0;
+		s += abs(gradientNoise(a*v))/a; 
+	}
+	return s;
+}
+
+float fff(vec2 p){
+	return fbm(p + t/4.0 + fbm(p + fbm(p)));
+}
+
+/* EXAMPLES */
+
+vec3 example0(vec2 p){
+	float s = fbm(p);
+	return vec3(s, s, 1.0);
+}
+
+vec3 example1(vec2 p){
+	float a = 100.0, b = 18.0, c = 4.0;
+	float s = sin(a*p.x + b*fbm(c*p));
+	s = (1.0 + s)/2.0;
+	return vec3(s, s, 1.0);
+}
+
+
+vec3 example2(vec2 p){
+	/* Contour */
+
+	vec3 bgColor = vec3(0.8, 0.4, 0.2);
+	vec3 ctColor = 0.8*vec3(1.0, 1.0, 1.0);
+	float n = sin(70.0*fbm(p));
+	n = (1.0 + n)/2.0;  /* map to [0,1) */
+	float a = smoothstep(0.65, 1.0, n);
+	return mix(bgColor, ctColor, a);
+}
+
+vec3 example3(vec2 p){
+	vec3 c;
+	float s = t/10.0;
+	float a = fbm(p);
+	float b = fff(p);
+	c = vec3(a, sin(a+s), fbm(p)-sin(s+b));
+	c *= vec3(b);
+	return c;
+}
+
+vec3 example4(vec2 p){
+	/* Each color component is obtained using a sin function 
+	   with different amplitudes and phases. */
+	
+	float s = 12.0;
+	vec2 v = vec2(fbm(p), 1.0);
+	vec2 r = vec2(1.2, 1.1);
+	vec2 g = vec2(9.2, 2.0);
+	vec2 b = vec2(4.0, 3.0);
+	vec3 u = vec3( dot(r, v), dot(g, v), dot(b, v) );
+	u = sin(s*u);
+
+	return (1.0 + u)/2.0; // convert to [0,1)
+}
+
+
+
+
+
+void main(){ 
+	vec2 p = (2.0*pos-1.0)/2.0;
+	
+	vec3 color;
+
+	//color = mapToColor(random(p));
+	//color = mapToColor(valueNoise(p)); 
+	//color = mapToColor(fbmVN(p));
+	//color = mapToColor(gradientNoise(p));
+	//color = vec3(gradientNoise(p)); 
+	//color = mapToColor(fbm(p));
+	//color = mapToColor(fff(p));
+	//color = mapToColor(turbulence(p));
+	//color = example0(p);
+	//color = example1(p);
+	//color = example2(p);
+	//color = example3(p);
+	color = example4(p);
+	//color = example5(p);
+
+	gl_FragColor = vec4(color,1.0); 
+
+}
+</script>
+
+<script type="text/javascript" src="../Common/webgl-utils.js"></script>
+<script type="text/javascript" src="../Common/initShaders.js"></script>
+<script type="text/javascript" src="../Common/MV.js"></script>
+<script type="text/javascript" src="Noise2d.js"></script>
+</head>
+
+<body style="background-color:grey;">
+<canvas id="gl-canvas" width="512" height="512">
+  HTML5 Canvas not supported!
+</canvas>
+</body>
+</html>
+

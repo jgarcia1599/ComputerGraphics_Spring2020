@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" > 
+
+<title>Draw Square</title>
+
+<script id="vertex-shader" type="x-shader/x-vertex">
+precision mediump float;
+uniform float t;
+attribute vec2 vPosition;
+varying vec2 fPosition;
+void main(){
+    fPosition = vPosition;
+    gl_Position = vec4(vPosition, 0.0, 1.0);
+}
+</script>
+
+<script id="fragment-shader" type="x-shader/x-fragment">
+precision mediump float;
+varying vec2 fPosition;
+uniform float t;
+
+float d(float f){ // distance to closest integer
+    return abs(f-floor(f+0.5));
+}
+
+float poly(float k, float s, float r, float theta){
+    float z = 4.0*acos(0.0)/k;  // note: z = 2*pi/k
+    return (r*cos(d(theta/z)*z) - s);
+}
+
+float grid(float n, float s, float x, float y){
+    return min(d(n*x/2.0), d(n*y/2.0)) - s;   
+}
+
+float f(vec2 pos){
+    
+    float x = pos.x;
+    float y = pos.y;
+    
+    float r = sqrt(x*x + y*y);
+    float pi = 2.0*acos(0.0);
+    float theta = atan(-y,-x) + pi; // map from [-pi, pi] to [0,2*pi] 
+
+    //return (r - 0.7);
+    //return (abs(r - 0.7) - 0.01);
+    //return (abs(x*y) - 0.05);
+    //return (r + 0.1*sin(15.0*theta) + 0.1*cos(30.0*theta) - 0.7);
+    //return (10.0*r - 8.0*sin(5.0*theta+t));
+    //return (2.0*r + sin(theta) + pow(sin(5.0*theta), 3.0));
+    //return (2.0*r - pow(cos(5.0*theta),2.0) - sin(3.0*theta) - 0.3);
+    //return (10.0*r - 8.0*cos(4.0*theta));
+    //return poly(7.0, 0.7, r, theta);
+    //return grid(10.0,0.02, x,y);
+    return min(poly(7.0, 0.7, r, theta), grid(10.0,0.02, x,y));
+    //return max(poly(3.0, 0.6, r, theta), r-0.7);
+}
+
+
+void main(){
+    float c = f(fPosition);
+    gl_FragColor = vec4( abs(sin(t/5.0)),-sign(c), abs(cos(t/7.0)), 1.0);
+ 
+}
+
+</script>
+
+<script type="text/javascript" src="../Common/webgl-utils.js"></script>
+<script type="text/javascript" src="../Common/initShaders.js"></script>
+<script type="text/javascript" src="../Common/MV.js"></script>
+<script type="text/javascript" src="DrawSquare.js"></script>
+</head>
+
+<body>
+<canvas id="gl-canvas" width="512" height="512">
+  HTML5 Canvas not supported!
+</canvas>
+</body>
+</html>
+
