@@ -15,7 +15,10 @@ window.onload = function init(){
 
     // Load shaders and initialize attribute buffers
     var program = initShaders( gl, "vertex-shader", "fragment-shader" );
-    gl.useProgram( program );
+	gl.useProgram( program );
+	
+	// set up virtual trackball
+	trackball = Trackball(canvas);
     
     // Set up buffers and attributes
 	var s = 0.7;
@@ -33,7 +36,7 @@ window.onload = function init(){
 	var tbuffer = gl.createBuffer();
 	gl.bindBuffer(gl.ARRAY_BUFFER, tbuffer);
 	gl.bufferData(gl.ARRAY_BUFFER, flatten(texCoords), gl.STATIC_DRAW);
-	var vTexCoord = gl.getAttribLocation(program, "vTexCoord");	
+	var vTexCoord = gl.getAttribLocation(program, "vTexCoord");	//vertex texture coordinates from the vertex shader
 	gl.vertexAttribPointer(vTexCoord, 2, gl.FLOAT, false, 0, 0);
 	gl.enableVertexAttribArray(vTexCoord);
 	

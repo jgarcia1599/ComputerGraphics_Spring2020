@@ -1,0 +1,135 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8"> 
+
+<title>Load Model</title>
+
+<script type="text/javascript" src="../NewCommon/webgl-utils.js"></script>
+<script type="text/javascript" src="../NewCommon/initShaders.js"></script>
+<script type="text/javascript" src="../NewCommon/MV.js"></script>
+<script type="text/javascript" src="../NewCommon/Utils/Trackball.js"></script>
+<script type="text/javascript" src="../NewCommon/Utils/Camera.js"></script>
+<script type="text/javascript" src="../NewCommon/Utils/Object.js"></script>
+<script type="text/javascript" src="../NewCommon/Utils/Texture.js"></script>
+<script type="text/javascript" src="../NewCommon/Utils/Utils.js"></script>
+<script type="text/javascript" src="LoadModel2.js"></script> 
+<script type="text/javascript" src="Models/teapot.js"></script> 
+<script type="text/javascript" src="Rabbit/rabbit.js"></script> 
+<script type="text/javascript" src="Models/office_chair.js"></script> 
+<script type="text/javascript" src="Models/formula1.js"></script>
+<script type="text/javascript" src="Models/teapot.js"></script>
+<script type="text/javascript" src="Models/cube.js"></script>
+<script type="text/javascript" src="Models/ball.js"></script>
+
+<script id="vertex-shader" type="x-shader/x-vertex">
+precision highp float;
+uniform float cube;
+
+attribute vec4 vPosition;
+attribute vec3 vNormal;
+attribute vec2 vTexCoord;
+attribute vec3 vTangent;
+attribute vec3 vBitangent;
+
+uniform mat4 M, TB, VP;
+uniform mat3 N, TBN;
+
+varying vec3 fNormal, fPosition;
+varying vec3 fTangent, fBitangent;
+varying vec2 fTexCoord;
+
+void main(){
+
+	mat4 TBM = TB*M;	   // 4 x 4 matrix 
+	mat3 TBM3 = mat3(TBM); // get the upper left 3x3 matrix
+
+	vec4 wPos = TBM*vPosition; // world position
+
+	vec4 v = VP*wPos;   
+	v.z = -v.z; /* since WebGL uses left handed coordinate system */
+	gl_Position = v;
+
+	fPosition = wPos.xyz;
+	fNormal = TBN*N*vNormal;
+	fTangent = TBM3*vTangent;
+	fBitangent = TBM3*vBitangent;
+	fTexCoord = vTexCoord;
+}
+
+
+</script>
+
+<script id="fragment-shader" type="x-shader/x-fragment">
+precision highp float;
+
+uniform vec3 Ka, Kd, Ks, Ia, Id, Is, lightPosition, cameraPosition;
+uniform float shininess;
+uniform float cube;
+uniform int usingDiffuseMap, usingNormalMap;
+uniform sampler2D diffuseSampler, normalSampler;
+
+varying vec3 fPosition, fNormal;
+varying vec3 fTangent, fBitangent;
+varying vec2 fTexCoord;
+
+
+vec4 computeColor() {
+	// we are doing lighting in world coordinate frame
+
+	// Set diffuse color kd
+	vec3 kd;
+	if(usingDiffuseMap == 1){
+		kd = texture2D(diffuseSampler, fTexCoord).rgb;
+	}
+	else{
+		kd = Kd;
+	}
+
+	// Set normal
+	vec3 normal;
+
+	if(usingNormalMap == 1){
+		vec3 c = texture2D(normalSampler, fTexCoord).rgb;
+		c = 2.0*c - 1.0; // convert to [-1, 1] range
+		normal = mat3(normalize(fTangent), normalize(fBitangent), normalize(fNormal))*c;
+	}
+	else{
+		normal = fNormal;
+	}
+	normal = normalize(normal);
+	
+	vec3 lightDir = normalize(lightPosition - fPosition);
+	vec3 viewDir = normalize(cameraPosition - fPosition);
+
+	vec3 ambient = Ia*Ka ;
+	
+	vec3 diffuse = Id*kd* max(0.0, dot(normal, lightDir));
+
+	vec3 halfVector = normalize(lightDir + viewDir);
+	vec3 specular = Is*Ks* pow( max(dot(halfVector, normal), 0.0), shininess);
+
+	vec3 color = ambient + diffuse + specular;
+
+	return vec4(color, 1.0);
+}
+
+void main(){
+
+		if (cube == 1.0){
+			gl_FragColor = texture2D(diffuseSampler, fTexCoord);
+
+		} else {
+			gl_FragColor = computeColor();
+
+		}
+		
+}
+</script>
+</head>
+<body>
+   <canvas id="gl-canvas" width="800" height="800">
+    HTML5 Canvas not supported!
+   </canvas>
+</body>
+</html>
+

@@ -32,7 +32,7 @@ window.onload = function init() {
 							
 			// set up Camera 
 			camera = Camera();
-			var eye = vec3(0,0.7, 0.7);
+			var eye = vec3(0,0.4, 0.2);
 			var at = vec3(0, 0 ,0);
 			var up = vec3(0,1,0);
 			camera.lookAt(eye, at, up);
@@ -56,7 +56,7 @@ function Scene(){
 
 			var scene = {}; // Object to be returned
 
-			var cubeModelMatrix, floorModelMatrix;
+			var cubeModelMatrix
 
 			var vertices = [];
 			var colors = [];
@@ -94,18 +94,11 @@ function Scene(){
 			quad(1,0,2,3,B);  quad(4,5,7,6,B); 
 			quad(5,1,3,7,R); quad(0,4,6,2,R);
 			quad(6,7,3,2,G); quad(0,1,5,4,G);
-			
-			//quad for the floor
-			quad(10,11,9,8,X);
 
 			var s = 0.2;
 			cubeModelMatrix = mult(scalem(s,s,s), translate(-0.5,0,-0.5));
 			//cubeModelMatrix = mult(translate(0,-0.3,0), cubeModelMatrix);
 
-			// floor 
-			var l = 0.6;
-			//floorModelMatrix = mult(translate(0,-0.3,0), scalem(l,l,l));
-			floorModelMatrix = scalem(l,l,l);
 
 			
 			// set up buffers
@@ -136,30 +129,14 @@ function Scene(){
 
 
 			scene.draw = function(now){
-				//draw cube
-				var t = fmod(now/3000,2);
-				var h;
-				if(t < 1){
-					h = 1-t*t;
-				}
-				else{
-					h = 1 - (2-t)*(2-t);
-				}
 
 				var M, N;
-				M = mult(translate(0,h,0),cubeModelMatrix);
+				M = cubeModelMatrix;
 				N = normalTransformationMatrix(M);
 
 				gl.uniformMatrix4fv(Locations.M, gl.FALSE, flatten(M));
 				gl.uniformMatrix3fv(Locations.N, gl.FALSE, flatten(N));
 				gl.drawArrays(gl.TRIANGLES, 0, 36);
-
-				//draw floor
-				M = floorModelMatrix;
-				N = normalTransformationMatrix(M);
-				gl.uniformMatrix4fv(Locations.M, gl.FALSE, flatten(M));
-				gl.uniformMatrix3fv(Locations.N, gl.FALSE, flatten(N));
-				gl.drawArrays(gl.TRIANGLES, 36, 6);
 
 			};
 
