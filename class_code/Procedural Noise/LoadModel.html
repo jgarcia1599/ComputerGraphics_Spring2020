@@ -1,0 +1,248 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8"> 
+
+<title>Load Model</title>
+
+<script type="text/javascript" src="../Common/webgl-utils.js"></script>
+<script type="text/javascript" src="../Common/initShaders.js"></script>
+<script type="text/javascript" src="../Common/MV.js"></script>
+<script type="text/javascript" src="../Common/Utils/Trackball.js"></script>
+<script type="text/javascript" src="../Common/Utils/Camera.js"></script>
+<script type="text/javascript" src="../Common/Utils/Utils.js"></script>
+
+<script type="text/javascript" src="LoadModel.js"></script> 
+<script type="text/javascript" src="Object.js"></script> <!-- We could also use  ../Common/Utils/Object.js -->
+<script type="text/javascript" src="Models/teapot.js"></script> 
+<script type="text/javascript" src="Models/apple.js"></script> 
+<script type="text/javascript" src="Models/bones.js"></script> 
+<script type="text/javascript" src="Models/bunny.js"></script> 
+
+<script id="vertex-shader" type="x-shader/x-vertex">
+precision highp float;
+
+attribute vec4 vPosition;
+attribute vec3 vNormal;
+
+uniform mat4 M, TB, VP;
+uniform mat3 N, TBN;
+uniform float scale;
+
+varying vec3 fNormal, fPosition, fModelPos;
+
+void main(){
+
+	mat4 TBM = TB*M;	   // 4 x 4 matrix 
+	mat3 TBM3 = mat3(TBM); // get the upper left 3x3 matrix
+
+	vec4 wPos = TBM*vec4(scale*vPosition.xyz, 1.0); // world position
+
+	vec4 v = VP*wPos;   
+	v.z = -v.z; /* since WebGL uses left handed coordinate system */
+	gl_Position = v;
+
+	fPosition = wPos.xyz;
+	fNormal = TBN*N*vNormal;
+	fModelPos = vPosition.xyz;
+}
+
+
+</script>
+
+<script id="fragment-shader" type="x-shader/x-fragment">
+precision highp float;
+
+uniform vec3 Ka, Kd, Ks, Ia, Id, Is, lightPosition, cameraPosition;
+uniform float shininess;
+
+uniform int drawWireframe;
+vec3 wireframeColor = vec3(0.1,0.2,0.4);
+
+varying vec3 fPosition, fNormal, fModelPos;
+
+uniform float scale;
+
+/* -------------------- Noise Functions -------------------- */
+#define PI 3.14159
+#define SALT  0.11
+#define SALT1 0.59
+#define SALT2 0.75
+#define SALT3 0.86
+
+vec3 hsv2rgb(vec3 c) {
+  vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+  vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+  return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+}
+
+vec3 mapToColor(float h){
+	float s = 1.0;
+	float v = 1.0;
+	return hsv2rgb(vec3(h,s,v));
+}
+
+
+float random(vec3 v, float salt){
+	// returns a value in [0,1)
+	float a = 5678.1234; 
+	vec3 b = vec3(12.3456, 78.910, 11.1213);
+	float c = 1.1235+salt;
+	return fract(a*sin(dot(b,v)+c));
+}
+
+float random(vec3 v){
+	// returns a value in [0,1)
+	return random(v, SALT);
+}
+
+
+vec3 randvec(vec3 v){
+	float z = 2.0*random(v,SALT1) -1.0;     // random height z \in [-1,1]
+	float r = sqrt(1.0 - z*z);              // r: radius of circle at height z
+	float theta = 2.0*PI*random(v,SALT2); // random angle theta \in [0, 2*PI]
+	return vec3(r*cos(theta), r*sin(theta), z);
+}
+
+float alpha(float t){ // fading fn, similar to smoothstep
+	return ((6.0*t-15.0)*t + 10.0)*t*t*t;
+}
+
+
+float gradientNoise(vec3 p){
+
+	vec3 p0 = floor(p);
+	vec3 p1 = p0 + vec3(0.0, 0.0, 1.0);
+	vec3 p2 = p0 + vec3(0.0, 1.0, 0.0);
+    vec3 p3 = p0 + vec3(0.0, 1.0, 1.0);
+    vec3 p4 = p0 + vec3(1.0, 0.0, 0.0);
+    vec3 p5 = p0 + vec3(1.0, 0.0, 1.0);
+    vec3 p6 = p0 + vec3(1.0, 1.0, 0.0);
+    vec3 p7 = p0 + vec3(1.0, 1.0, 1.0);
+
+	float l0 = random(p0) + dot( p - p0, randvec(p0) );
+	float l1 = random(p1) + dot( p - p1, randvec(p1) );
+	float l2 = random(p2) + dot( p - p2, randvec(p2) );
+	float l3 = random(p3) + dot( p - p3, randvec(p3) );
+	float l4 = random(p4) + dot( p - p4, randvec(p4) );
+	float l5 = random(p5) + dot( p - p5, randvec(p5) );
+	float l6 = random(p6) + dot( p - p6, randvec(p6) );
+	float l7 = random(p7) + dot( p - p7, randvec(p7) );
+
+	vec3 t = fract(p);
+	float a = t.x, b = t.y, c = t.z;
+	float a0 = alpha(1.0-a), a1 = alpha(a);
+	float b0 = alpha(1.0-b), b1 = alpha(b);
+	float c0 = alpha(1.0-c), c1 = alpha(c);
+	
+	return a0*b0*c0*l0 + a0*b0*c1*l1 + a0*b1*c0*l2 + a0*b1*c1*l3 +
+	       a1*b0*c0*l4 + a1*b0*c1*l5 + a1*b1*c0*l6 + a1*b1*c1*l7;
+}
+
+#define OCTAVES 8
+float fbm(vec3 p){
+	float a = 1.0, s = 0.0;
+	for(int i = 0; i < OCTAVES; ++i){
+		a *= 2.0;
+		s += gradientNoise(a*p)/a;
+	}
+	return s;
+}
+
+float turbulence(vec3 p){
+	/*	Similar to fbm but uses absolute value of noise fn.
+		This introduces discontinuties in the derivative.	*/
+	float a = 1.0, s = 0.0;
+	for(int i = 0; i < OCTAVES; ++i){
+		a *= 2.0;
+		s += abs(gradientNoise(a*p))/a; 
+	}
+	return s;
+}
+
+float fff(vec3 p){
+	return fbm(p + 1.0/4.0 + fbm(p + fbm(p)));
+}
+
+vec3 example1(vec3 p){
+	float a = 100.0, b = 18.0, c = 4.0;
+	float s = sin(a*p.x + b*fbm(c*p));
+	s = (1.0 + s)/2.0;
+	return vec3(s, s, 0.6);
+}
+
+vec3 example2(vec3 p){
+	/* Contour */
+
+	vec3 bgColor = vec3(0.8, 0.4, 0.2);
+	vec3 ctColor = 0.8*vec3(1.0, 1.0, 1.0);
+	float n = sin(70.0*fbm(p));
+	n = (1.0 + n)/2.0;  /* map to [0,1) */
+	float a = smoothstep(0.65, 1.0, n);
+	return mix(bgColor, ctColor, a);
+}
+
+vec3 example4(vec3 p){
+	/* Each color component is obtained using a sin function 
+	   with different amplitudes and phases. */
+	vec3 v = vec3(fbm(p), 1.0, 1.0);
+	vec3 r = vec3(1.2, 1.1, 1.0);
+	vec3 g = vec3(9.2, 2.0, -5.6);
+	vec3 b = vec3(4.0, 3.0, 1.0);
+	vec3 u = vec3( dot(r, v), dot(g, v), dot(b, v) );
+	u = sin(20.0*u);
+
+	return (1.0 + u)/2.0; // convert to [0,1)
+}
+
+/* ----------------- end of Noise Functions ----------------- */
+
+vec3 getColor(){
+    vec3 v = scale*fModelPos;
+    //return example1(0.4*v);
+    //return example2(0.6*v);
+    return example4(0.1*v);
+    //return mapToColor(fff(v));
+}
+
+
+vec4 computeColor() {
+	// we are doing lighting in world coordinate frame
+
+	vec3 normal = normalize(fNormal);
+	
+	vec3 lightDir = normalize(lightPosition - fPosition);
+	vec3 viewDir = normalize(cameraPosition - fPosition);
+
+	vec3 ambient = Ia*Ka ;
+
+	vec3 kd = getColor();
+	
+	vec3 diffuse = Id*kd* max(0.0, dot(normal, lightDir));
+
+	vec3 halfVector = normalize(lightDir + viewDir);
+	vec3 specular = Is*Ks* pow( max(dot(halfVector, normal), 0.0), shininess);
+
+	vec3 color = ambient + diffuse + specular;
+
+	return vec4(color, 1.0);
+}
+
+void main(){
+	    if (drawWireframe == 1){
+	    	gl_FragColor = vec4(wireframeColor,1);
+	    }
+	    else{
+		    gl_FragColor = computeColor();
+	    }
+}
+</script>
+</head>
+<body style="background-color:grey;">
+   <canvas id="gl-canvas" width="512" height="512">
+    HTML5 Canvas not supported!
+   </canvas>
+   <br><br>
+   <button id="btn"> Toggle Wireframe </button>
+</body>
+</html>
+

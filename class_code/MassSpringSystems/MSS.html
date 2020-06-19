@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" >
+
+<title>Bouncing Particles</title>
+
+<script id="vertex-shader" type="x-shader/x-vertex">
+precision mediump float;
+attribute vec4 vPosition;
+
+void main(){
+	gl_PointSize = 8.0;
+	gl_Position = vPosition;
+}
+</script>
+
+<script id="fragment-shader" type="x-shader/x-fragment">
+precision mediump float;
+varying vec4 fColor;
+void main(){
+	vec2 p = 2.0*gl_PointCoord-1.0;
+	if(p.x*p.x + p.y*p.y>0.3) discard;
+  	gl_FragColor = vec4(0.5, 0.5, 0.2, 1.0);
+}
+</script>
+
+<script type="text/javascript" src="../Common/webgl-utils.js"></script>
+<script type="text/javascript" src="../Common/initShaders.js"></script>
+<script type="text/javascript" src="../Common/MV.js"></script>
+<script type="text/javascript" src="MSS.js"></script>
+<script type="text/javascript" src="Models.js"></script>
+</head>
+
+<body>
+<canvas id="gl-canvas" width="512" height="512">
+  HTML5 Canvas not supported!
+</canvas>
+<h2>Time: <span id="time"></span> seconds</h2>
+</body>
+</html>
