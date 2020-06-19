@@ -2,6 +2,7 @@ function Camera(){
 
 	var Mcam = mat4(); // camera matrix 
 	var P = mat4();    // projection matrix
+	
 	var camFrame = { // camera frame
 			e: vec3(0,0,0), // camera location
 			u: vec3(1,0,0), // unit vector to "right"
@@ -9,7 +10,6 @@ function Camera(){
 			w: vec3(0,0,1)  // unit vector opposite "gaze" direction
 	};			
 	
-	addEventHandlers();
 
 	var Cam = { /* object to be returned */
 		 	
@@ -50,7 +50,11 @@ function Camera(){
 				return camFrame;
 			},
 			
-			allowMovement: addEventHandlers
+			allowMovement: function(){
+				// add event handlers for moving the camera
+				addEventHandlers(); 
+			}
+
 	};
 
 	function cameraMatrix(eye,u,v,w){
@@ -59,6 +63,7 @@ function Camera(){
 				vec4(w, -dot(w,eye)),
 				vec4(0,0,0,1) );
 	}
+	
 
 	function orthoProjMatrix(r,l,t,b,n,f){ // n > f
 
@@ -82,82 +87,54 @@ function Camera(){
 		var r = t*aspect;
 		return perspProjectionMatrix(r,-r, t,-t, -near, -far);
 	}
-
+	
 	function addEventHandlers(){
 		var delta = 0.05;
 		var theta = 0.05;
-		var c = Math.cos(theta); 
-		var s = Math.sin(theta);
+
 		window.addEventListener('keydown', handlekeydown);
-
+		
 		function handlekeydown(e){	
+			var u, v, w;
 			var k = e.key;
-			var ctrl = e.ctrlKey;
-			var m = null;
+			var f = camFrame;
+			var c = Math.cos(theta);
+			var s = Math.sin(theta);
+			var d = delta;
+			
+			if(k =="ArrowRight" || k == "ArrowDown"){s *= -1;}
+			if(k == "ArrowLeft" || k== "ArrowDown" || k == "a"){d*=-1};
 
-			// add your code here 
-			// e.g. if (ctrl && k == "ArrowRight") { ... }
-			if (ctrl && k == "ArrowDown"){
-				// rotate right
-				m = Ry(theta);
-			}
-			else if (ctrl && k == "ArrowUp"){
-				// rotate left
-				m = Ry(theta* (-1.0));
-			}
-			else if (!ctrl){
-				switch(k){
-					case "ArrowLeft":
-				        // Left pressed
-				        m = translate(delta, 0, 0);
-				        break;
-				    case "ArrowRight":
-				        // Right pressed
-				        m = translate(-1.0*delta, 0, 0);
-				        break;
-				    case "ArrowUp":
-				        // Up pressed
-				        m = translate(0, -1.0*delta, 0);
-				        break;
-				    case "ArrowDown":
-				        // Down pressed
-				        m = translate(0, delta, 0);
-				        break;
-				    case "a":
-				    	// forward towards the object
-				    	m = translate(0, 0, delta);
-				    	break;
-				    case "z":
-				    	// backward 
-				    	m = translate(0, 0, -1.0*delta);
-				    	break;
-				    default:
-				    	m = null; 
-				    	break;
+			
+			if(k == "ArrowUp" || k == "ArrowDown"){
+				if(!e.ctrlKey){
+					f.e = add(f.e, scale(d,f.v));
 				}
+				else{
+					v = add(scale(c,f.v), scale(s,f.w));
+					w =  add(scale(-s,f.v), scale(c,f.w));
+					f.v = v; f.w = w;
+				}
+				Mcam = cameraMatrix(f.e, f.u, f.v, f.w);
 			}
-			if (m != null){
-				Mcam = mult(m, Mcam);
-				var inverseMcam = inverse(Mcam);
-				camFrame.u = normalize(vec3(inverseMcam[0][0], inverseMcam[1][0], inverseMcam[2][0]));
-				camFrame.v = normalize(vec3(inverseMcam[0][1], inverseMcam[1][1], inverseMcam[2][1]));
-				camFrame.w = normalize(vec3(inverseMcam[0][2], inverseMcam[1][2], inverseMcam[2][2]));
-				camFrame.e = vec3(inverseMcam[0][3], inverseMcam[1][3], inverseMcam[2][3]);
-				// console.log("after:");
-				// console.log(camFrame);
+			else if(k == "ArrowLeft" || k == "ArrowRight"){
+				if(!e.ctrlKey){
+					f.e = add(f.e, scale(d,f.u));
+				}
+				else{
+					w = add(scale(c,f.w), scale(s,f.u));
+					u = add(scale(-s,f.w), scale(c,f.u));
+					f.w = w; f.u = u;
+				}
+				Mcam = cameraMatrix(f.e, f.u, f.v, f.w);
 			}
+			else if(k == "a" || k == "z"){
+				f.e = add(f.e, scale(d,f.w));
+				Mcam = cameraMatrix(f.e, f.u, f.v, f.w);
+			}			
 		}	
 	}
-	
-	return Cam;
-}
 
-function Ry(theta) {
-  var c = Math.cos(theta);
-  var s = Math.sin(theta);
-  var ry = mat4( c, 0.0, s, 0.0,
-      0.0, 1.0,  0.0, 0.0,
-      -s, 0.0,  c, 0.0,
-      0.0, 0.0,  0.0, 1.0 );
-  return ry;
+	return Cam;
+
 }

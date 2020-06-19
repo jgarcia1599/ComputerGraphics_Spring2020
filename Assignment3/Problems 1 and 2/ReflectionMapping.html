@@ -1,0 +1,200 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8"> 
+
+<title>Reflection Mapping</title>
+
+<script type="text/javascript" src="../Common/webgl-utils.js"></script>
+<script type="text/javascript" src="../Common/initShaders.js"></script>
+<script type="text/javascript" src="../Common/MV.js"></script>
+<script type="text/javascript" src="../Common/Utils/Trackball.js"></script>
+<script type="text/javascript" src="../Common/Utils/Camera.js"></script>
+<script type="text/javascript" src="../Common/Utils/Object.js"></script>
+<script type="text/javascript" src="../Common/Utils/Utils.js"></script>
+<script type="text/javascript" src="../Common/Utils/Texture.js"></script>
+<script type="text/javascript" src="Models/teapot.js"></script>
+<script type="text/javascript" src="Models/skyboxcube.js"></script> 
+<script type="text/javascript" src="Models/formula1.js"></script> 
+<script type="text/javascript" src="ReflectionMapping.js"></script> 
+
+<script id="vertex-shader" type="x-shader/x-vertex">
+precision highp float;
+
+
+attribute vec4 vPosition;
+attribute vec3 vNormal,vTangent,vBitangent;
+attribute vec2 vTexCoord;
+
+uniform lowp int id;
+uniform mat4 M, TB, VP;
+
+varying vec3 fNormal, fPosition, fTangent, fBitangent;
+varying vec2 fTexCoord;
+
+void main(){
+
+	vec4 wPos = M*vPosition; // world position
+
+	if(id == 2){ // teapot
+		wPos = TB*wPos;
+	}
+
+	vec4 v = VP*wPos;   
+	v.z = -v.z; // compensate for left handed coordinate system used by WebGL
+	gl_Position = v;
+
+	fPosition = wPos.xyz;
+
+	fNormal = vNormal;
+	fTangent = vTangent;
+	fBitangent = vBitangent;
+	fTexCoord = vTexCoord;
+}
+
+
+</script>
+
+<script id="fragment-shader" type="x-shader/x-fragment">
+precision highp float;
+
+uniform lowp int id;
+uniform float reflectivity;
+uniform vec3 Ka, Kd, Ks, Ia, Id, Is, lightPosition, cameraPosition;
+uniform float shininess;
+uniform int usingDiffuseMap, usingNormalMap;
+uniform sampler2D diffuseSampler, normalSampler;
+uniform mat3 N, TBN;
+
+varying vec4 fColor;
+varying vec3 fNormal, fPosition, fTangent, fBitangent;
+varying vec2 fTexCoord;
+vec3 kd;
+
+
+
+vec4 computeColor(vec3 position, vec3 normal) {
+	// we are doing lighting in world coordinate frame
+
+	vec3 lightDir = normalize(lightPosition - position);
+	vec3 viewDir = normalize(cameraPosition - position);
+
+	vec3 ambient = Ia*Ka ;
+	
+	vec3 diffuse = Id*kd* max(0.0, dot(normal, lightDir));
+	
+	vec3 halfVector = normalize(lightDir + viewDir);
+	vec3 specular = Is*Ks* pow( max(dot(halfVector, normal), 0.0), shininess);
+
+	vec3 color = ambient + diffuse + specular;
+
+	return vec4(color, 1.0);
+}
+
+
+
+vec2 getTexCoord(vec3 r){
+
+	vec2 center, ab, dir;
+    vec2 D = vec2(1.0/4.0, 1.0/3.0); // (ds, dt)
+    float eps = 0.00001; // error tolerance
+
+    vec3 w = abs(r);
+    r /= max(w.x, max(w.y, w.z));
+
+    if(abs(r.x - 1.0) < eps){     // face: x = +1
+    	ab = r.zy;
+    	dir = vec2(-1.0, 1.0);
+    	center = vec2(5.0/8.0, 1.0/2.0);
+    }
+    else if(abs(r.x + 1.0) < eps){ // face: x = -1
+        ab = r.zy;
+        dir = vec2(1.0, 1.0);
+        center = vec2(1.0/8.0, 1.0/2.0);
+    }
+    else if(abs(r.y - 1.0) < eps){ // face: y = +1
+        ab = r.xz;
+        dir = vec2(1.0, -1.0);
+        center = vec2(3.0/8.0, 5.0/6.0);
+    }
+    else if(abs(r.y + 1.0) < eps){ // face: y = -1
+        ab = r.xz;
+        dir = vec2(1.0, 1.0);
+        center = vec2(3.0/8.0, 1.0/6.0);
+    }
+    else if(abs(r.z - 1.0) < eps){ // face: z = +1
+        ab = r.xy;
+        dir = vec2(1.0, 1.0);
+        center = vec2(3.0/8.0, 1.0/2.0);
+    }
+    else if(abs(r.z + 1.0) < eps){ // face: z = -1
+        ab = r.xy;
+        dir = vec2(-1.0, 1.0);
+        center = vec2(7.0/8.0, 1.0/2.0);
+    }
+
+    vec2 v = 0.5*ab*dir*D;
+    return center + v;
+}
+
+
+
+void main(){
+	vec3 normal;
+
+	if(usingDiffuseMap == 1){
+		kd = texture2D(diffuseSampler, fTexCoord).rgb;
+	}
+	else{
+		kd = Kd;
+	}
+
+	if(id == 1){
+	    gl_FragColor = vec4(kd,1.0);
+	}
+	else{
+
+		if(usingNormalMap == 1 && id!=2){
+			vec3 c = texture2D(normalSampler, fTexCoord).rgb;
+			c = 2.0*c - vec3(1.0,1.0,1.0);
+			normal = c.r*fTangent + c.g*fBitangent+ c.b*fNormal;
+		}
+		else{
+			normal = fNormal;
+		}
+
+		normal = normalize(N*normal);
+
+		if(id == 2){ // teapot reflection mapping
+		    normal = normalize(TBN*normal);
+			vec3 v = normalize(cameraPosition - fPosition);
+			vec3 r = -v + 2.0*dot(v, normal)*normal; // reflected direction
+			vec3 kd1 = texture2D(diffuseSampler, getTexCoord(r)).rgb;
+			vec3 kd2 = texture2D(normalSampler, fTexCoord).rgb;
+			kd = reflectivity*kd1 + (1.0 - reflectivity)*kd2;
+		}
+        
+		gl_FragColor = computeColor(fPosition, normal);
+	}
+}
+</script>
+</head>
+<body>
+   <canvas id="gl-canvas" width="512" height="512">
+    HTML5 Canvas not supported!
+   </canvas>
+   <br>
+   <h4> Car speed:  
+        <input id="speed" type="range"  min="0",
+             max="1", value="0.1", step="0.01" > </input>
+   </h4>
+   <h4> Teapot reflectivity:  
+        <input id="reflectivity" type="range"  min="0",
+             max="1", value="0.8", step="0.01" > </input>
+   </h4>
+   <button id="btn"> Toggle Camera </button> 
+   <h4>Use the mouse to move the teapot and the keyboard 
+       to move the camera. 
+   </h4>
+</body>
+</html>
+

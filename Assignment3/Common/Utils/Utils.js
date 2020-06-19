@@ -1,6 +1,7 @@
 function getLocations(Attributes, Uniforms, program){
-
-  // if program is not specified, use the currently active program
+	
+  // If program is not specified, use the currently active program.
+  // We need the program parameter in some cases.
   if(!program){ program = gl.getParameter(gl.CURRENT_PROGRAM); }
 
   var L = {}; // object to be returned

@@ -41,8 +41,6 @@ function Trackball(canvas){
 			var n = cross(p1,p2);
 			if(length(n)!=0){
 				var theta = 5*Math.asin(length(n))*180/Math.PI;
-				// Note: theta is in degrees
-				
 				tbMatrix = mult(rotate(theta, n), tbMatrix);
 				// We are using the rotate function from MV.js which 
 				// is correct. rotateX and rotateY have sign errors.
